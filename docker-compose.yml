@@ -1,0 +1,86 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql:8.0.31
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "localhost", "-u${DB_USER}", "-p${DB_PASS}", "${DB_NAME}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    container_name: db
+    volumes:
+      - db_vol:/var/lib/mysql
+    networks:
+      - site_net
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    container_name: nginx
+    depends_on:
+      - wordpress
+    restart: unless-stopped
+    networks:
+      - site_net
+    volumes:
+      - ./requirements/nginx/conf:/etc/nginx/conf.d
+      - wp_vol:/var/www/html
+
+  wordpress:
+    image: wordpress:php8.1-fpm-alpine
+    container_name: wp
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASS}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_TABLE_PREFIX: wp_
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - site_net
+    volumes:
+      - wp_vol:/var/www/html
+
+  adminer:
+    image: adminer:4.8.1
+    restart: unless-stopped
+    container_name: adminer
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - site_net
+
+  portainer:
+    image: portainer/portainer-ce:${ARCH}
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
+    container_name: portainer
+    ports:
+      - "9443:9443"
+      - "8000:8000"
+    volumes:
+      # - /opt/portainer/portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  wp_vol:
+  db_vol:
+
+networks:
+  site_net:
