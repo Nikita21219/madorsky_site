@@ -34,6 +34,7 @@ services:
     volumes:
       - ./requirements/nginx/conf:/etc/nginx/conf.d
       - wp_vol:/var/www/html
+      - certbot-etc:/etc/letsencrypt
 
   wordpress:
     image: wordpress:php8.1-fpm-alpine
@@ -65,22 +66,29 @@ services:
     networks:
       - site_net
 
-  portainer:
-    image: portainer/portainer-ce:${ARCH}
-    restart: unless-stopped
-    environment:
-      - TZ=Europe/Moscow
-    container_name: portainer
-    ports:
-      - "9443:9443"
-      - "8000:8000"
+  certbot:
+    depends_on:
+      - nginx
+    image: certbot/certbot:v2.2.0
+    container_name: certbot
     volumes:
-      # - /opt/portainer/portainer_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - certbot-etc:/etc/letsencrypt
+      - wp_vol:/var/www/html
+    command: certonly --webroot --webroot-path=/var/www/html --email madorskii@mail.ru --agree-tos --no-eff-email --force-renewal -d madorsky.site -d www.madorsky.site
+
 
 volumes:
-  wp_vol:
   db_vol:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/nikita/data_madorsky_site/wp
+  wp_vol:
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/nikita/data_madorsky_site/db
+  certbot-etc:
 
 networks:
   site_net:
